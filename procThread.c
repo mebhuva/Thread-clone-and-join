@@ -5,8 +5,12 @@
 
 int procThread_create(void)
 {
-    // add your implementation here ...
-    return -1;
+    void* stack = malloc(4096); 
+int tid = clone((void *)stack);
+//free(stack);
+printf(1,"Thread id- %d",tid);
+return tid;
+    
 }
 
 

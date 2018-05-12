@@ -32,6 +32,7 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
+extern uint rval;
 //PAGEBREAK: 41
 void
 trap(struct trapframe *tf)
@@ -80,6 +81,10 @@ trap(struct trapframe *tf)
    
   //PAGEBREAK: 13
   default:
+    if(tf->eip == 0xffffffff) {
+          proc->killed = 1;
+          break;
+    }
     if(proc == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.
       cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",

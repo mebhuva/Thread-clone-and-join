@@ -69,7 +69,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+p->is_thread=0;
   return p;
 }
 
@@ -470,4 +470,76 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int clone(void *stack)
+{
+ int i, pid;
+  struct proc *np, *pp;
+  uint stacksize;
+
+  // Allocate process.
+  if((np = allocproc()) == 0) {
+    cprintf("allocproc fail\n");
+    return -1;
+  }
+
+  // Threads use the same pagetable
+  np->pgdir = proc->pgdir;
+
+  np->is_thread = 1;
+
+  np->sz = proc->sz;
+  np->parent = proc;
+  *np->tf = *proc->tf;
+
+  // correctly set parent to the base process
+  pp = proc;
+  while (pp->is_thread)
+    pp = pp->parent;
+  np->parent = pp;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  // File descriptors
+  // Modify to point to same file descriptors
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = filedup(proc->ofile[i]);
+  np->cwd = idup(proc->cwd);
+
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+
+  // Copy stack
+  acquire(&ptable.lock); // lock required because of stack read
+  stacksize = (uint)proc->tf->esp + (PGSIZE - ((uint)proc->tf->esp % PGSIZE));
+  stacksize = stacksize - (uint)proc->tf->esp;
+  np->tf->esp = (uint)stack + PGSIZE - stacksize;
+  np->tf->ebp = np->tf->esp + (proc->tf->ebp - proc->tf->esp);
+  if(copyout(np->pgdir,np->tf->esp,(void*)proc->tf->esp,stacksize)<0){
+    cprintf("stack copy fail\n");
+    return -1;
+  }
+  //release(&ptable.lock);
+
+  pid = np->pid;
+
+  // lock to force the compiler to emit the np->state write last.
+  //acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+  
+  return pid;
+}
+
+void join(int tid, int * ret_p, void ** stack)
+{
+
+}
+
+
+void thread_exit(int ret_val)
+{
+
 }

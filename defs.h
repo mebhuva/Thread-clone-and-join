@@ -118,6 +118,9 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+int             clone(void*);
+void            join(int, int*, void**);
+void            thread_exit(int);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

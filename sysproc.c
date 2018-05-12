@@ -104,3 +104,18 @@ int sys_print_free_frame_cnt(void)
     cprintf("free-frames %d\n", free_frame_cnt);
     return 0;
 }
+int sys_clone(void)
+{
+  void * ptr;
+  argptr(0, (char **) &ptr, sizeof(void*));
+  return clone(ptr);
+}
+void sys_join(void) 
+{
+
+}
+
+void sys_thread_exit(void) 
+{
+ 
+}

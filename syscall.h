@@ -22,3 +22,6 @@
 #define SYS_close  21
 #define SYS_shutdown     23
 #define SYS_print_free_frame_cnt 24
+#define SYS_clone	25
+#define SYS_join	26
+#define SYS_thread_exit	27
