@@ -8,7 +8,7 @@ int procThread_create(void)
     void* stack = malloc(4096); 
 int tid = clone((void *)stack);
 //free(stack);
-printf(1,"Thread id- %d",tid);
+//printf(1,"Thread id- %d",tid);
 return tid;
     
 }

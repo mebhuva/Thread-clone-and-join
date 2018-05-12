@@ -81,6 +81,7 @@ trap(struct trapframe *tf)
    
   //PAGEBREAK: 13
   default:
+
     if(tf->eip == 0xffffffff) {
           proc->killed = 1;
           break;

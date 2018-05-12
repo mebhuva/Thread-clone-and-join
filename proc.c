@@ -69,7 +69,6 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-p->is_thread=0;
   return p;
 }
 
@@ -142,6 +141,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+  np->is_thread = 1;
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
@@ -232,7 +232,10 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
+if (!p->is_thread)
+{
         freevm(p->pgdir);
+}
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
@@ -475,7 +478,7 @@ procdump(void)
 int clone(void *stack)
 {
  int i, pid;
-  struct proc *np, *pp;
+  struct proc *np;
   uint stacksize;
 
   // Allocate process.
@@ -493,15 +496,9 @@ int clone(void *stack)
   np->parent = proc;
   *np->tf = *proc->tf;
 
-  // correctly set parent to the base process
-  pp = proc;
-  while (pp->is_thread)
-    pp = pp->parent;
-  np->parent = pp;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-
   // File descriptors
   // Modify to point to same file descriptors
   for(i = 0; i < NOFILE; i++)
@@ -521,7 +518,7 @@ int clone(void *stack)
     cprintf("stack copy fail\n");
     return -1;
   }
-  //release(&ptable.lock);
+ // release(&ptable.lock);
 
   pid = np->pid;
 
