@@ -491,7 +491,7 @@ int clone(void *stack)
   np->pgdir = proc->pgdir;
 
   np->is_thread = 1;
-
+  np->stack = stack;
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
@@ -530,13 +530,98 @@ int clone(void *stack)
   return pid;
 }
 
-void join(int tid, int * ret_p, void ** stack)
+void join(int tid, int * ret_p , void ** stack)
 {
-
+struct proc *p;
+  int havekids;		// Checks whether the given thread has any child or not.
+  acquire(&ptable.lock);
+   //cprintf("out side zombie\n"); 
+  //Inifinite loop to check if there exist any child
+  for(;;){
+    havekids = 0;
+		
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        //if(p->pid != tid || tid != 0)	// Loop till you find the child with thread ID tid 
+         //       continue;
+ //if(p->pgdir != proc->pgdir )
+   //     continue;
+     // if(p->parent != proc )
+       //       continue;
+      havekids = 1;
+      if(p->is_thread)
+{
+//cprintf("check");
+*ret_p = p->tf->eax;
+}
+	//cprintf("eax = %d\n",p->tf->eax);
+	  //Found child and its state is zombie
+      if(p->state == ZOMBIE){
+//cprintf("inside zombie\n");
+        *ret_p = (int)p->tf->eax;
+         //cprintf("eax = %d \n",p->tf->eax);
+	//Found one child.
+	kfree(p->kstack);	//Free the kernel allocated stack
+	p->kstack = 0;
+        //if (!p->is_thread)
+          //freevm(p->pgdir);
+	// Initialization of parameters
+	*stack = (void *)p->stack;	//Allocate a new stack
+	p->state = UNUSED;		
+	p->pid = 0;
+	p->parent = 0;
+	p->name[0] = 0;
+	p->killed = 0;
+	release(&ptable.lock);
+	
+	return;
+      }
+    }
+	if(!havekids || proc->killed){
+		release(&ptable.lock);
+	return;
+  }
+  
+  sleep(proc, &ptable.lock);  // wait-sleep
+}
 }
 
-
-void thread_exit(int ret_val)
+void thread_exit(int ret_val_p)
 {
+ struct proc *p;
+  int fd;
+
+  if(proc == initproc)
+    panic("init exiting");
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(proc->ofile[fd]){
+      fileclose(proc->ofile[fd]);
+      proc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(proc->cwd);
+  end_op();
+  proc->cwd = 0;
+  acquire(&ptable.lock);
+proc->tf->eax = ret_val_p; // Capture the return value into eax register.
+  // Parent might be sleeping in wait().
+  wakeup1(proc->parent);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+  proc->is_thread = 1;
+  sched();
+  panic("zombie exit");
 
 }

@@ -69,6 +69,8 @@ struct proc {
   void* stack;				   // Thread's Stack 
   void* ret_val_p;             // Pointer to thread's return value
   int is_thread;			   // To check whether particular process is thread or not
+  int exitstatus;              // Proces exit status
+int ret_val;
 
 };
 

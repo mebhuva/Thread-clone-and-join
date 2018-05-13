@@ -110,12 +110,36 @@ int sys_clone(void)
   argptr(0, (char **) &ptr, sizeof(void*));
   return clone(ptr);
 }
-void sys_join(void) 
+int sys_join(void) 
 {
-
+  //Defining parameters
+  int * ret_p;
+  int tid;
+  void** stack;
+  
+  //Validating Inputs  
+  if (argint(0,&tid) < 0)
+	return -1;
+  if (argptr(1,(char **)&ret_p,sizeof(int*)) < 0)
+	return -1;
+  if(argptr(2, (void*)&stack, sizeof(void **)) < 0){
+	return -1;
+    }
+  join(tid,ret_p,stack);
+return 1;
 }
 
-void sys_thread_exit(void) 
+//Project 3: It does the validations (input parameters)
+//and calls the thread_exit function
+void
+sys_thread_exit(void) 
 {
- 
+  //Defining parameters
+  int ret_val_p;
+  
+  //Validating Inputs
+  if (argint(0,&ret_val_p) < 0) {
+	return;
+   }
+  thread_exit(ret_val_p);
 }
