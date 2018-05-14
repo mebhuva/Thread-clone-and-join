@@ -474,98 +474,60 @@ procdump(void)
     cprintf("\n");
   }
 }
-
 int clone(void *stack)
 {
  int i, pid;
-  struct proc *np;
+  struct proc *sp;
   uint stacksize;
-
-  // Allocate process.
-  if((np = allocproc()) == 0) {
+//cprintf("start of clone function");
+  if((sp = allocproc()) == 0) {
     cprintf("allocproc fail\n");
     return -1;
   }
-
-  // Threads use the same pagetable
-  np->pgdir = proc->pgdir;
-
-  np->is_thread = 1;
-  np->stack = stack;
-  np->sz = proc->sz;
-  np->parent = proc;
-  *np->tf = *proc->tf;
-
-
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
-  // File descriptors
-  // Modify to point to same file descriptors
+  sp->stack = stack;
+  sp->sz = proc->sz;
+  sp->parent = proc;
+  sp->pgdir = proc->pgdir;
+  sp->is_thread = 1;
+  *sp->tf = *proc->tf;
+       sp->tf->eax = 0;
   for(i = 0; i < NOFILE; i++)
     if(proc->ofile[i])
-      np->ofile[i] = filedup(proc->ofile[i]);
-  np->cwd = idup(proc->cwd);
-
-  safestrcpy(np->name, proc->name, sizeof(proc->name));
-
-  // Copy stack
+         sp->ofile[i] = filedup(proc->ofile[i]);
+  sp->cwd = idup(proc->cwd);
+  safestrcpy(sp->name, proc->name, sizeof(proc->name));
+  //cprintf("out side of stack copy condition\n");
   acquire(&ptable.lock); // lock required because of stack read
-  stacksize = (uint)proc->tf->esp + (PGSIZE - ((uint)proc->tf->esp % PGSIZE));
-  stacksize = stacksize - (uint)proc->tf->esp;
-  np->tf->esp = (uint)stack + PGSIZE - stacksize;
-  np->tf->ebp = np->tf->esp + (proc->tf->ebp - proc->tf->esp);
-  if(copyout(np->pgdir,np->tf->esp,(void*)proc->tf->esp,stacksize)<0){
-    cprintf("stack copy fail\n");
+//cprintf("inside lock condition\n");
+  stacksize = (uint)proc->tf->esp + (PGSIZE - ((uint)proc->tf->esp % PGSIZE)) - (uint)proc->tf->esp;
+      sp->tf->esp = (uint)stack + PGSIZE - stacksize;
+      sp->tf->ebp = sp->tf->esp + (proc->tf->ebp - proc->tf->esp);
+  if(copyout(sp->pgdir,sp->tf->esp,(void*)proc->tf->esp,stacksize)<0){
+    cprintf("failed stack copy\n");
+    //cprintf("inside stack copy condition\n");
     return -1;
   }
- // release(&ptable.lock);
-
-  pid = np->pid;
-
-  // lock to force the compiler to emit the np->state write last.
-  //acquire(&ptable.lock);
-  np->state = RUNNABLE;
-  release(&ptable.lock);
-  
-  return pid;
+  pid = sp->pid;//assign thread id
+  sp->state = RUNNABLE;
+  release(&ptable.lock);//releasing ptable
+return pid;
 }
-
 void join(int tid, int * ret_p , void ** stack)
-{
+ {
+
 struct proc *p;
   int havekids;		// Checks whether the given thread has any child or not.
   acquire(&ptable.lock);
-   //cprintf("out side zombie\n"); 
-  //Inifinite loop to check if there exist any child
   for(;;){
-    havekids = 0;
-		
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        //if(p->pid != tid || tid != 0)	// Loop till you find the child with thread ID tid 
-         //       continue;
- //if(p->pgdir != proc->pgdir )
-   //     continue;
-     // if(p->parent != proc )
-       //       continue;
+    havekids = 0;		
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       havekids = 1;
-      if(p->is_thread)
-{
-//cprintf("check");
-*ret_p = p->tf->eax;
-}
-	//cprintf("eax = %d\n",p->tf->eax);
-	  //Found child and its state is zombie
-      if(p->state == ZOMBIE){
-//cprintf("inside zombie\n");
+ 
+   if(p->state == ZOMBIE){
         *ret_p = (int)p->tf->eax;
-         //cprintf("eax = %d \n",p->tf->eax);
-	//Found one child.
-	kfree(p->kstack);	//Free the kernel allocated stack
+	kfree(p->kstack);	
 	p->kstack = 0;
-        //if (!p->is_thread)
-          //freevm(p->pgdir);
-	// Initialization of parameters
-	*stack = (void *)p->stack;	//Allocate a new stack
+        *stack = (void *)p->stack;	
 	p->state = UNUSED;		
 	p->pid = 0;
 	p->parent = 0;
@@ -574,25 +536,28 @@ struct proc *p;
 	release(&ptable.lock);
 	
 	return;
-      }
+    }
+     if(p->is_thread == 1)
+{
+int eaxvalue = p->tf->eax;
+*ret_p = eaxvalue ;//assigning eax Register value to the ret_p pointer
+}
     }
 	if(!havekids || proc->killed){
 		release(&ptable.lock);
 	return;
-  }
-  
-  sleep(proc, &ptable.lock);  // wait-sleep
+  }  
+ sleep(proc, &ptable.lock);  // wait-sleep
 }
-}
+ }
 
 void thread_exit(int ret_val_p)
-{
+ {
  struct proc *p;
   int fd;
 
   if(proc == initproc)
     panic("init exiting");
-  // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(proc->ofile[fd]){
       fileclose(proc->ofile[fd]);
@@ -605,11 +570,9 @@ void thread_exit(int ret_val_p)
   end_op();
   proc->cwd = 0;
   acquire(&ptable.lock);
-proc->tf->eax = ret_val_p; // Capture the return value into eax register.
-  // Parent might be sleeping in wait().
+proc->tf->eax = ret_val_p;
   wakeup1(proc->parent);
 
-  // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
       p->parent = initproc;
@@ -618,10 +581,9 @@ proc->tf->eax = ret_val_p; // Capture the return value into eax register.
     }
   }
 
-  // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   proc->is_thread = 1;
   sched();
   panic("zombie exit");
-
-}
+ 
+ }
